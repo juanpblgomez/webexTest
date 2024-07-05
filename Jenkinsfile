@@ -59,6 +59,7 @@ def notifyWebex() {
                 message += "\n- [${commitMessage}](${env.JIRA_BASE_URL}${jiraTicket})"
             } else {
                 message += "\n- ${commitMessage}"
+            }
         }
 
         // Reemplazar saltos de línea por \\n para el formato JSON
