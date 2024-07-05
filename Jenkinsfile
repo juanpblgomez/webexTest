@@ -1,5 +1,12 @@
 pipeline {
     agent any
+
+    environment {
+        JIRA_BASE_URL = "https://santex.atlassian.net/browse/"
+        WEBEX_ROOM_ID = "Y2lzY29zcGFyazovL3VybjpURUFNOnVzLXdlc3QtMl9yL1JPT00vNzA2MDk2MjAtM2FlMy0xMWVmLTkwMjEtMzFlNGRkYTk0Mzk1"
+        WEBEX_ACCESS_TOKEN = "NDdkM2IyYTctNDYyOC00ZDkwLThlNTEtNzQxY2E5NTRkMjBjOGVjMWRkMTktM2Iz_P0A1_e60e91ca-26e5-462f-aa2b-364e3ee84ba2"
+    }
+
     stages {
         stage('Build') {
             steps {
@@ -20,5 +27,53 @@ pipeline {
             }
         }
     }
+
+    post {
+        success {
+            notifyWebex()
+        }
+    }
 }
 
+def notifyWebex() {
+    script {
+        // Obtener los commits desde el último despliegue exitoso
+        def commits = sh(
+            script: """
+            git log --no-merges --pretty=format:"%s" -3
+            """,
+            returnStdout: true
+        ).trim()
+
+        // Armar el mensaje Markdown
+        def message = "**Despliegue reciente**\n\nLos últimos commits desplegados:\n"
+        commits.split('\n').each { commitMessage ->
+            // Extraer el número de ticket JIRA del mensaje del commit (asumiendo que sigue un patrón como "PROJ-1234")
+            def jiraTicketMatcher = commitMessage =~ /([A-Z]+-[0-9]+)/
+            if (jiraTicketMatcher) {
+                def jiraTicket = jiraTicketMatcher[0]
+                message += "\n- [${commitMessage}](${env.JIRA_BASE_URL}${jiraTicket})"
+            } else {
+                message += "\n- ${commitMessage}"
+            }
+        }
+
+        echo "Mensaje a enviar a Webex:"
+        echo message.toString()
+
+        // Reemplazar saltos de línea por \\n para el formato JSON
+        def jsonMessage = message.replace("\n", "\\n")
+
+        // Enviar el mensaje a Webex usando curl
+        sh """
+        curl -X POST \
+          https://webexapis.com/v1/messages \
+          -H "Authorization: Bearer ${env.WEBEX_ACCESS_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -d '{
+                "roomId": "${env.WEBEX_ROOM_ID}",
+                "markdown": "${jsonMessage}"
+              }'
+        """
+    }
+}
