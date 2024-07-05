@@ -40,26 +40,26 @@ def notifyWebex() {
         // Obtener los commits desde el último despliegue exitoso
         def commits = sh(
             script: """
-            git log --no-merges --pretty=format:"%s" -3
+            git log --no-merges --pretty=format:"%s" ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT}..${env.GIT_COMMIT}
             """,
             returnStdout: true
         ).trim()
 
+        println("Commits desplegados:\n${commits}")
+
         // Armar el mensaje Markdown
-        def message = "**Despliegue reciente**\n\nLos últimos commits desplegados:\n"
+        def message = "**Listado de tareas desplegadas:**\n"
+        def jiraRegex = ~/(\[?([A-Z]+-\d+)\]?)/
+
         commits.split('\n').each { commitMessage ->
             // Extraer el número de ticket JIRA del mensaje del commit (asumiendo que sigue un patrón como "PROJ-1234")
-            def jiraTicketMatcher = commitMessage =~ /([A-Z]+-[0-9]+)/
+            def jiraTicketMatcher = commitMessage =~ jiraRegex
             if (jiraTicketMatcher) {
-                def jiraTicket = jiraTicketMatcher[0]
+                def jiraTicket = jiraTicketMatcher[0][2]
                 message += "\n- [${commitMessage}](${env.JIRA_BASE_URL}${jiraTicket})"
             } else {
                 message += "\n- ${commitMessage}"
-            }
         }
-
-        echo "Mensaje a enviar a Webex:"
-        echo message.toString()
 
         // Reemplazar saltos de línea por \\n para el formato JSON
         def jsonMessage = message.replace("\n", "\\n")
