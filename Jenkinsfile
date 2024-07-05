@@ -46,35 +46,39 @@ def notifyWebex() {
         ).trim()
 
         println("Commits desplegados:\n${commits}")
+        // Verificar si commitList tiene datos antes de enviar el mensaje a Webex
+        if (commits) {
+            // Armar el mensaje Markdown
+            def message = "**Listado de tareas desplegadas:**\n"
+            def jiraRegex = ~/(\[?([A-Z]+-\d+)\]?)/
 
-        // Armar el mensaje Markdown
-        def message = "**Listado de tareas desplegadas:**\n"
-        def jiraRegex = ~/(\[?([A-Z]+-\d+)\]?)/
-
-        commits.split('\n').each { commitMessage ->
-            // Extraer el número de ticket JIRA del mensaje del commit (asumiendo que sigue un patrón como "PROJ-1234")
-            def jiraTicketMatcher = commitMessage =~ jiraRegex
-            if (jiraTicketMatcher) {
-                def jiraTicket = jiraTicketMatcher[0][2]
-                message += "\n- [${commitMessage}](${env.JIRA_BASE_URL}${jiraTicket})"
-            } else {
-                message += "\n- ${commitMessage}"
+            commits.split('\n').each { commitMessage ->
+                // Extraer el número de ticket JIRA del mensaje del commit (asumiendo que sigue un patrón como "PROJ-1234")
+                def jiraTicketMatcher = commitMessage =~ jiraRegex
+                if (jiraTicketMatcher) {
+                    def jiraTicket = jiraTicketMatcher[0][2]
+                    message += "\n- [${commitMessage}](${env.JIRA_BASE_URL}${jiraTicket})"
+                } else {
+                    message += "\n- ${commitMessage}"
+                }
             }
+
+            // Reemplazar saltos de línea por \\n para el formato JSON
+            def jsonMessage = message.replace("\n", "\\n")
+
+            // Enviar el mensaje a Webex usando curl
+            sh """
+            curl -X POST \
+            https://webexapis.com/v1/messages \
+            -H "Authorization: Bearer ${env.WEBEX_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{
+                    "roomId": "${env.WEBEX_ROOM_ID}",
+                    "markdown": "${jsonMessage}"
+                }'
+            """
+        } else {
+            println("No hay commits nuevos para desplegar.")
         }
-
-        // Reemplazar saltos de línea por \\n para el formato JSON
-        def jsonMessage = message.replace("\n", "\\n")
-
-        // Enviar el mensaje a Webex usando curl
-        sh """
-        curl -X POST \
-          https://webexapis.com/v1/messages \
-          -H "Authorization: Bearer ${env.WEBEX_ACCESS_TOKEN}" \
-          -H "Content-Type: application/json" \
-          -d '{
-                "roomId": "${env.WEBEX_ROOM_ID}",
-                "markdown": "${jsonMessage}"
-              }'
-        """
     }
 }
